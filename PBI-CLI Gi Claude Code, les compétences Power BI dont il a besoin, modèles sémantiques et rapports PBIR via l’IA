@@ -1,0 +1,132 @@
+Introduction : Quel problème résout PBI-CLI ?
+Si vous avez suivi la vague d’outils de développement alimentés par l’IA au cours de l’année écoulée, vous savez que des agents de codage comme Claude Code commencent à remodeler notre manière d’écrire et de maintenir des modèles de données. Mais connecter ces agents à Power BI a toujours été maladroit : copier-coller du DAX dans une fenêtre de chat, faire une capture d’écran visuelle ou lutter avec des configurations JSON de serveur MCP qui nécessitent un processus sidecar en cours d’exécution.
+
+ 
+
+pbi-cli (par MinaSaad1 sur GitHub) modifie l’équation. Il offre à Claude Code un ensemble de compétences structurées et efficaces en jetons afin qu’il puisse lire et écrire directement des modèles sémantiques Power BI et des fichiers de rapports PBIR sans serveur MCP, sans binaire externe, et avec une exécution en moins d’une seconde.
+
+L’idée centrale : Installez une fois, exécutez trois commandes, puis demandez simplement à Claude en anglais clair : « Ajoutez une mesure pour le chiffre d’affaires mobile sur 12 mois à la table des ventes » et c’est fait.
+
+Le projet propose 488 tests automatisés, exécution DAX, opérations CRUD visuelles, un REPL avec complétion tabulationnelle, et des DLL Microsoft Analysis Services inclus pour ne jamais avoir à courir après les dépendances.
+
+Aperçu de l’architecture
+PBI-CLI fonctionne sur deux couches distinctes qui correspondent parfaitement à la structure du projet PBIP :
+
+Couche de modèle sémantique Interopérative .NET directe en cours de Python vers Power BI Desktop via TOM/ADOMD. Pas de serveur MCP, pas de binaires externes, exécution en moins d’une seconde.
+Couche de rapport Lit et écrit directement les fichiers JSON PBIR (Enhanced Report Format). Aucune connexion nécessaire. Fonctionne avec des projets .pbip.
+Plutôt que de lancer un serveur MCP ou d’appeler une API REST, pbi-cli utilise l’interopérabilité .NET de Python pour communiquer avec l’instance Analysis Services de Power BI Desktop en cours de traitement. Intégrés au paquet Python () se trouvent les assemblages clients Microsoft Analysis Services (AMO + ADOMD.NET).pbi_cli/dlls/
+
+Pour le côté rapport, aucune connexion en direct n’est nécessaire. Le PBIR stocke chaque visuel comme un fichier individuel dans une structure de dossiers prévisible. PBI-CLI lit et écrit ces documents directement, fonctionne hors ligne, fonctionne en CI/CD.visual.json
+
+Installation et première installation
+Exigences : Windows avec Python 3.10+ et Power BI Desktop doit fonctionner avec un fichier .pbix ouvert avant la connexion. macOS/Linux n’est pas pris en charge (les DLL TOM sont uniquement sous Windows).
+
+pipx install pbi-cli-tool
+pbi-cli skills install
+pbi connect
+Après ces trois commandes, Claude Code découvre les 12 compétences Power BI et vous pouvez commencer à vous lancer immédiatement des demandes.
+
+Note sur le chemin : sur Windows, la commande est souvent placée en dehors de votre PATH. Utilisez cela pour éviter complètement cela.pip installpbipipx
+
+Laissez Claude gérer toute la configuration
+"Clone https://github.com/MinaSaad1/pbi-cli, install it with pipx,
+run pbi-cli skills install, then connect to Power BI Desktop."
+Les 12 compétences Power BI pour Claude Code
+Quand vous exécutez , il écrit des fichiers skill dans le répertoire contextuel de Claude Code. Chaque compétence enseigne à Claude un domaine de domaine différent — vous n’avez jamais besoin de mémoriser la syntaxe de la CLI.pbi-cli skills install
+
+Measure créer, modifier, lister et documenter les mesures DAX
+Table Gérer les tables dans le modèle sémantique
+Column Travail avec les propriétés de colonnes et les types de données
+Relationship créer et modifier des relations
+Dax-execute exécuter les requêtes EVALUATE sur le modèle en direct
+Visual-add ajouter de nouveaux visuels aux pages de rapports PBIR
+Visual-get / visual-list Inspecter les visuels existants
+Visual-update modifier les propriétés visuelles
+Visual-bind / visual-bulk-bind lier des champs aux visuels
+Visual-bulk-update / visual-bulk-delete Opérations par lots sur plusieurs pages
+Visual-where Filtrez les visuels par propriété pour des modifications ciblées
+Connect gérer les connexions nommées vers les instances de bureau
+Travailler avec des modèles sémantiques via TOM
+Création et documentation de mesures
+"Create a measure called [Rolling 12M Revenue] in the Sales table.
+Use DATESINPERIOD to sum [Revenue Amount] over the trailing 12 months
+from the last date in context."
+Documentation en bloc d’un modèle
+"Add descriptions to all measures in the Sales table explaining
+what each one calculates. Use plain English, no jargon."
+Claude va introspecter la table, générer des descriptions et appeler chacune dans une boucle.pbi measure update
+
+Exécution des requêtes DAX en ligne
+Efficace en termes de jeton par conception : pbi-cli ne récupère que les métadonnées dont Claude a besoin pour chaque tâche, maintenant une faible utilisation des jetons même pour les grands modèles.
+
+pbi dax execute "EVALUATE TOPN(5, Sales, [Revenue Amount], DESC)"
+Rédaction de rapports PBIR avec un langage naturel
+La couche rapport ne nécessite aucune connexion en direct, elle fonctionne uniquement sur les fichiers projet sur le disque. Idéal pour les pipelines CI/CD, les passes de mise en forme automatisées ou les migrations visuelles en lot..pbip
+
+Sujets de rapport pratique
+Ajoutez un visuel :
+
+"Add a clustered bar chart to the Overview page showing Revenue by Region."
+Mise en page en bloc :
+
+"Set all card visual title font sizes to 14 across the entire report."
+Rebind en masse :
+
+"Rebind all visuals on the Sales page that reference OldMeasureName to NewMeasureName."
+Nettoyage :
+
+"Find and delete any visuals that have no field bindings."
+Le REPL interactif
+Pour une exploration pratique sans Claude Code, pbi-cli propose un REPL interactif avec complétion d’onglet et une invite dynamique indiquant votre connexion active.
+
+$ pbi repl
+pbi> connect --data-source localhost:54321
+Connected: localhost-54321
+pbi(localhost-54321)> measure list
+pbi(localhost-54321)> dax execute "EVALUATE TOPN(5, Sales)"
+pbi(localhost-54321)> exit
+L’histoire est stockée dans . La complétion d’onglet fonctionne pour toutes les commandes et drapeaux.~/.pbi-cli/repl_history
+
+PBI-CLI vs serveurs MCP — Que choisir ?
+Aspect	Approche serveur MCP	Approche PBI-CLI
+Modèle de procédé	Nécessite un procédé sidecar en cours	Interopérabilité .NET en cours — pas de sidecar
+Mise en place	Fichier de configuration JSON requis	Commandement uniqueskills install
+Latence	Le saut réseau ajoute des overheads	Exécution en moins d’une seconde
+Utilisation hors ligne	Cela dépend de la disponibilité des serveurs	Le montage PBIR fonctionne entièrement hors ligne
+Multi-agents	Fonctionne avec tout client compatible MCP	Conçu spécifiquement pour Claude Code
+Si vous vivez dans Claude Code et que vous voulez le chemin à friction la plus faible, PBI-CLI gagne. Si vous souhaitez partager l’intégration entre GitHub Copilot, Cursor et Claude Desktop, powerbi-modeling-mcp ou le marché de développement power-bi-agentic valent la peine d’être explorés en parallèle.
+
+Conseils d’experts et prompts concrets
+1. Soyez précis sur les noms
+Citez des tables exactes et des noms de mesures. Au lieu de « ajouter une mesure cumulée depuis l’année », par exemple « ajouter une mesure appelée [Revenu YTD] à la table des ventes en utilisant TOTALYTD sur [Montant du chiffre d’affaires] ».
+
+2. Vérifier avec DAX après avoir créé les mesures
+"Create [YTD Revenue] as described, then run a DAX query
+to verify it returns a non-zero value for the current year."
+3. Utiliser REPL pour l’exploration, Claude Code pour la création
+Utilisez , , dans le REPL pour mapper votre modèle puis passez à Claude Code pour l’édition.measure listtable listcolumn list --table Sales
+
+4. Contrôle de version de vos fichiers .pbip
+Chaque changement de pbi-cli est un git diff propre. Combinez avec un hook de pré-commit pour valider le modèle après chaque édition.pbi measure list
+
+5. Les opérations en vrac font gagner le plus de temps
+Des tâches comme « renommer toutes les mesures commençant par 'Calc_' » ou « définir chaque image à la taille de police 12 » qui prennent une heure dans l’interface du bureau — prennent quelques secondes avec pbi-cli.
+
+Conclusion
+PBI-CLI adopte une approche réfléchie pour le problème agent IA + Power BI. En sautant le sidecar MCP et en allant directement en processus via .NET TOM, il atteint une latence inférieure à la seconde qui rend les flux de travail agents vraiment réactifs. La structure à 12 compétences donne à Claude Code une connaissance spécifique au domaine, plutôt qu’un flot de documents génériques.
+
+Le projet est nouveau, donc attendez-vous à des aspérités — surtout lorsque le bureau ne tourne pas ou qu’un projet PBIP utilise des mises en page de dossiers non standard. Mais les bases sont solides, la couverture des tests est réelle (488 tests), et la licence MIT permet à la communauté de s’appuyer dessus.
+
+Essayez dès maintenant :
+
+pipx install pbi-cli-tool
+pbi-cli skills install
+pbi connect
+Puis demandez à Claude Code : « Listez toutes les mesures de mon modèle et identifiez celles qui n’ont pas de description. » Résultats en moins de 10 secondes.
+
+Liens utiles
+pbi-cli sur GitHub
+Marché communautaire Power-Bi-Agentic-Development
+Microsoft powerbi-modeling-mcp
+As-tu essayé PBI-CLI ? Partagez votre expérience dans les commentaires ci-dessous !
+Source : https://community.fabric.microsoft.com/t5/Power-BI-Community-Blog/pbi-cli-Gi-Claude-Code-the-Power-BI-Skills-It-Needs-Semantic/ba-p/5146283 
